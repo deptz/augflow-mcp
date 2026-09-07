@@ -1,0 +1,9 @@
+{
+  "mcp": {
+    "augflow": {
+      "type": "local",
+      "command": ["augflow", "mcp"],
+      "enabled": true
+    }
+  }
+}

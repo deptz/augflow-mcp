@@ -1,0 +1,12 @@
+# Entry under mcp_servers.augflow in Hermes' ~/.hermes/config.yaml
+# (honors $HERMES_HOME if set). Generate the token first:
+#   augflow hermes-direct token --enable
+# and allowlist your channel before this connector will do anything:
+#   augflow hermes-direct channel add --platform <p> --chat-id <id> --user-id <id> \
+#     --permissions read,bind,switch,capture,prompt_queue,summary,stop
+
+command: augflow
+args: ["hermes-direct", "serve"]
+env:
+  AUGFLOW_HERMES_DIRECT_TOKEN: "<the token from step 1 - keep secret, do not commit>"
+  AUGFLOW_PROJECT_PATH: "/path/to/your/project"   # or omit and pass --project instead

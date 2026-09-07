@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "augflow": {
+      "type": "stdio",
+      "command": "augflow",
+      "args": ["mcp"]
+    }
+  }
+}
