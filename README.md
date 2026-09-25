@@ -19,8 +19,8 @@ setup mistake — read this table before picking a guide below.
 |---|---|---|
 | Who it's for | IDE/CLI coding agents: Claude Code, Cursor, GitHub Copilot CLI, Gemini CLI, OpenCode, and other generic MCP clients | The [Hermes Agent](https://hermes-agent.nousresearch.com) chat connector specifically |
 | Transport | stdio (default) or streamable HTTP (`--http`) | stdio only |
-| Tool surface | ~95 tools: card lifecycle, delivery, workspace, QA, runs, tasks, PR review, scheduling, peer handoff, etc. | A dozen purpose-built tools scoped to driving one card session from chat: `augflow_status`, `augflow_cards_list`, `augflow_bind_channel`, `augflow_prompt_queue`, etc. |
-| Auth | None — relies on local process/localhost trust and project-path scoping | Required — `AUGFLOW_HERMES_DIRECT_TOKEN`, channel allowlist, per-command permissions |
+| Tool surface | 94 tools: card lifecycle, delivery, workspace, QA, runs, tasks, PR review, scheduling, peer handoff, etc. | 13 purpose-built tools scoped to driving one card session from chat: `augflow_status`, `augflow_cards_list`, `augflow_bind_channel`, `augflow_prompt_queue`, etc. |
+| Auth | None — relies on local process/localhost trust and project-path scoping (a separate, tool-scoped route is intended for an already-paired, approved remote device, though local/admin callers can reach it too — see [docs/transports-and-scoping.md](docs/transports-and-scoping.md)) | Required — `AUGFLOW_HERMES_DIRECT_TOKEN`, channel allowlist, per-command permissions |
 | Enabled by default | No (opt-in auto-install for CLI agents; always available to run manually) | No — disabled until you explicitly enable direct mode |
 | Guide | See [client guides](#supported-clients) below | [docs/clients/hermes.md](docs/clients/hermes.md) |
 
@@ -60,7 +60,7 @@ applies versus doing it by hand.
 
 ## A note on accuracy
 
-This guide reflects Augflow's MCP servers as of when it was written. The tool
-surface especially will grow over time — run `augflow mcp --help` /
-`augflow hermes-direct --help`, or ask your MCP client to list tools live, for
-the current, authoritative reference if something here looks stale.
+This guide reflects Augflow v0.1.6. The tool surface especially will grow over
+time — run `augflow mcp --help` / `augflow hermes-direct --help`, or ask your
+MCP client to list tools live, for the current, authoritative reference if
+something here looks stale.

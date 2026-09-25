@@ -2,7 +2,7 @@
 
 Hermes does **not** use the general-purpose `augflow mcp` server. It uses a
 separate, purpose-built connector — `augflow hermes-direct serve` — that speaks
-MCP over stdio, requires a token, and only exposes a dozen tools scoped to
+MCP over stdio, requires a token, and only exposes 13 tools scoped to
 driving one bound card session from a chat channel. This is Augflow's **direct
 Hermes integration**, currently a local-first proof of concept (disabled by
 default). Team Hub remains the recommended path for multi-user/production
@@ -11,7 +11,7 @@ routing — this connector is for a single trusted local user.
 > **One-click alternative:** the Augflow web UI has **Settings → Direct Hermes →
 > ⚡ Quick setup**, which runs the whole flow below in one wizard, including
 > writing the MCP entry into Hermes' own config. If you use that, you can skip
-> straight to [Verify](#verify).
+> straight to [Verify](#4-verify).
 
 ## 1. Enable direct mode and generate a token
 

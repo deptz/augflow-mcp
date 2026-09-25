@@ -8,10 +8,17 @@ fast path.
 
 - Binary: `augflow`, must be on `PATH`. Check: `augflow --version`.
 - Two independent MCP servers exist. Pick the right one:
-  - `augflow mcp` — general purpose, ~95 tools, no auth, stdio or `--http`.
-  - `augflow hermes-direct serve` — Hermes-only, ~12 tools, token + allowlist auth, stdio only.
+  - `augflow mcp` — general purpose, 94 tools, no auth, stdio or `--http`.
+  - `augflow hermes-direct serve` — Hermes-only, 13 tools, token + allowlist auth, stdio only.
 - Default project scope = launch directory, unless `AUGFLOW_PROJECT_PATH` is set. See "Project scoping" below.
+- Card/task ID lookups (`card_show`, `task_show`, `deps_list`/`deps_add`,
+  `qa_result`, `qa_list_runs`, `workspace_plan`, `workspace_implement`,
+  etc.) are project-scoped: an ID that belongs to a different project than
+  the resolved scope returns not-found, not a cross-project result. If a
+  specific known ID comes back not-found, check project scope before
+  assuming the ID is wrong.
 - No config values in this repo are fabricated. Anything not directly sourced from the `augflow` repo is explicitly marked ASSUMPTION or unverified (see `docs/clients/other-mcp-clients.md`).
+- Reflects Augflow v0.1.6.
 
 ## Minimal stdio connection (most clients)
 
@@ -50,6 +57,23 @@ loopback `api_token`, enforced if you set one) but is always blocked for
 remote/tunneled devices. Localhost binding is the real boundary either way —
 never expose beyond it.
 
+A separate route, `/api/mcp-remote`, is intended for an already-paired,
+approved Augflow Anywhere remote device — but local/admin callers can also
+reach it, always limited to the `allowed_tools` subset below. `/api/mcp`
+itself is unchanged and is never reachable by a paired remote device. The
+remote route exposes a curated, config-driven tool subset (`remote_access.mcp`
+in `~/.augflow/config.yaml`, hand-edit only — no Settings UI yet): `enabled`
+defaults to true when unset (a remote device additionally needs to be
+paired and approved to reach it), `allowed_tools`
+defaults to a curated, non-destructive set (not strictly read-only; some
+reads do internal bookkeeping) — nothing that commits, pushes, deletes,
+creates/updates a PR, or starts/retries a cloud job (`card_reopen` is not in
+the default) — and an explicit `allowed_tools: []` is a deliberate deny-all.
+`X-Project-Path` (or `?project=`) is mandatory on this route, with no
+fallback project. See
+[docs/transports-and-scoping.md](docs/transports-and-scoping.md) for the full
+picture.
+
 ## Project scoping resolution order (stdio servers)
 
 1. `AUGFLOW_PROJECT_PATH` env var
@@ -58,6 +82,22 @@ never expose beyond it.
 
 Empty tool results with no error == almost always a scoping miss, not a
 connection failure. Set `AUGFLOW_PROJECT_PATH` explicitly if unsure.
+A tool call that returns a not-found error for a card/task ID you know exists
+is the same underlying issue from the other side: the ID belongs to a
+different project than the one this server resolved (see "Facts" above).
+
+`workspace_start` (a fresh-card start only — resume launches are unchanged)
+can return before the agent finishes booting: the launch continues on its own
+goroutine, so a follow-up `card_show`/`card_list` may show the card's session
+with empty `agent_provider*` fields until the launch fills them in. If the
+stdio `augflow mcp` process is killed before that goroutine finishes, the
+launch may be abandoned; retrying the start on the same card, or running it
+against a project also served by `augflow serve`/`augflow mcp --http` (which
+reconcile in-progress cards on their own startup), is the recovery path.
+Caveat: if the process was killed right after the prompt was typed, the agent
+may actually be running in its tmux pane even though the session looks
+provider-less; check the pane before retrying or relying on reconcile, which
+can otherwise relaunch over the live pane (a known, unclosed race).
 
 ## Hermes-specific setup (do in order)
 

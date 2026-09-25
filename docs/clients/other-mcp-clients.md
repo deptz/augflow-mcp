@@ -53,7 +53,8 @@ always blocked for remote/tunneled devices regardless. Localhost binding is
 the real boundary — do not expose either beyond it. See
 [docs/transports-and-scoping.md](../transports-and-scoping.md) for the full
 picture, including why `/api/mcp` is explicitly blocked for remote/tunneled
-Augflow Anywhere devices.
+Augflow Anywhere devices — and for the separate, tool-scoped `/api/mcp-remote`
+route that an already-paired, approved remote device uses instead.
 
 ## What to check if it doesn't work
 

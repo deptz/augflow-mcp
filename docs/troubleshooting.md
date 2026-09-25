@@ -29,6 +29,38 @@ project with data. Check:
 See [docs/transports-and-scoping.md](transports-and-scoping.md#project-scoping)
 for the full resolution order.
 
+## "A tool says a card/task is not found, but the ID exists"
+
+This is the same class of problem as the empty-result case above, from the
+other side: card/task ID lookups (`card_show`, `task_show`,
+`deps_list`/`deps_add`, `qa_result`, `qa_list_runs`, `workspace_plan`,
+`workspace_implement`, and more) are project-scoped for every caller,
+including local stdio. An ID that belongs to a different project than the
+one this call resolved to comes back not-found, not that other project's
+data. Check which project the server actually resolved to (see
+[docs/transports-and-scoping.md](transports-and-scoping.md#project-scoping))
+before assuming the ID itself is wrong.
+
+## "A card was started via MCP, but the agent never came up / a follow-up `card_show` has empty `agent_provider` fields"
+
+`workspace_start` (a fresh-card start only — resume launches are unchanged)
+returns as soon as the card exists, while the agent may still be launching
+asynchronously. Its response itself is only `{ok, card_id, branch, status}`
+— it carries no `agent_provider*` fields at all — but a follow-up
+`card_show`/`card_list` can show the card's session with empty
+`agent_provider*` fields until that launch finishes and fills them in, which
+is expected right after a start. If the `augflow mcp` stdio process is killed
+before the launch finishes, it can be abandoned; the process prints `warning:
+some agent launches were still running at shutdown; those cards may need a
+restart` when it can't drain them in time. Retrying the start on the same
+card, or running against a project also served by `augflow serve`/`augflow
+mcp --http` (which reconcile in-progress cards on their own startup), is the
+recovery path. Caveat: if the process was killed right after the prompt was
+typed, the agent may actually be running in the card's tmux pane even though
+its session looks provider-less — check the pane before retrying or relying
+on reconcile, which can otherwise relaunch over the live pane (a known,
+unclosed race).
+
 ## Hermes: `channel_not_allowlisted`
 
 The error message (and `augflow_whereami`'s `how_to_allowlist` field) echoes
@@ -59,8 +91,22 @@ a fresh one (this invalidates the old one).
   is) — or use `augflow mcp --http` as a standalone alternative.
 - You must be calling from a local/CLI context — the `/api/mcp` mount is
   explicitly blocked for remote-tunneled Augflow Anywhere devices, by design.
+  A remote, already-paired/approved device must instead use the separate
+  `/api/mcp-remote` route — see
+  [docs/transports-and-scoping.md](transports-and-scoping.md).
 - Confirm the `X-Project-Path` header is set — without it, project scope
   can't resolve.
+
+## `/api/mcp-remote` returns 403 "remote MCP access is disabled"
+
+This exact message fires when `remote_access.mcp.enabled` is `false`, or its
+effective `allowed_tools` is empty (the operator explicitly set
+`allowed_tools: []`). Check `remote_access.mcp` in `~/.augflow/config.yaml`.
+If you just edited `config.yaml` and still don't get a 403, check that the
+file still exists, parses, and — if the server started with any auth
+configured (`api_token`, Google auth, or a session secret) — still has at
+least one of them. In any of those failure cases the server silently keeps
+the setting it started with.
 
 ## Still stuck
 
