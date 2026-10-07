@@ -27,8 +27,9 @@ See [examples/cursor.json](../../examples/cursor.json).
 
 ## Project scope
 
-Same rule as every other client here: `augflow mcp` scopes to the directory it's
-launched from (or `AUGFLOW_PROJECT_PATH` if set). Since Cursor typically runs
+Same rule as every other client here: `augflow mcp` scopes to the nearest
+linked or registered project at or above the directory it's launched from (or
+`AUGFLOW_PROJECT_PATH` if set). Since Cursor typically runs
 with its cwd already inside the target project/worktree, you usually don't need
 to set anything extra. See
 [docs/transports-and-scoping.md](../transports-and-scoping.md) if tools return

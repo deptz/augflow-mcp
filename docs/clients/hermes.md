@@ -99,6 +99,15 @@ project resolved via `--project`/`AUGFLOW_PROJECT_PATH`/`default_project` is
 served. This is an operator-side control (a chat user can never change which
 project is being served), but setting it is recommended defense in depth.
 
+`--project`, `AUGFLOW_PROJECT_PATH` and `default_project` (in that order, then
+the working directory) resolve the project as if `serve` were started in that
+directory, so a subdirectory, symlink or trailing-slash spelling of the project
+names the same project. An **absolute** `allowed_projects` entry matches the
+project under any of those spellings; a **relative** entry is compared only as
+written and is never resolved against the working directory. Prefer absolute
+project paths in `allowed_projects`. Channel bindings created before v0.1.8 under a
+different spelling of the project path keep working.
+
 ## 4. Verify
 
 ```bash
@@ -118,6 +127,15 @@ Read-only: `augflow_status`, `augflow_cards_list`, `augflow_card_show`,
 `augflow_events_poll`, `augflow_events_wait`.
 Routing: `augflow_bind_channel`, `augflow_active_card_set`.
 Mutating: `augflow_prompt_queue`, `augflow_summary_generate`, `augflow_stop_agent`.
+
+Since v0.1.8, `augflow_cards_list` takes a `status` filter (`backlog`/`todo`,
+`plan`, `in_progress`, `done`; default is the "relevant" view), entries carry
+`effective_status`, and `status: backlog` also lists read-only virtual entries
+for tasks with no card yet. `augflow_card_show` accepts a card ID, task ID,
+`card_key` or virtual ID and returns `ambiguous_key` when a key matches more
+than one card. Event responses include `has_more`, and `augflow_status` /
+`augflow_groups_list` report `warnings` when bindings can't be read. See
+[docs/tools-reference.md](../tools-reference.md#augflow-hermes-direct-serve-hermes-specific-13-tools).
 
 The connector deliberately never exposes raw `tmux_send`, shell exec, or git
 mutation tools (no commit/push/PR/branch-delete from Hermes). It also exposes an

@@ -23,8 +23,8 @@ See [examples/gemini.json](../../examples/gemini.json).
 
 ## Project scope
 
-`augflow mcp` scopes to the directory it's launched from, or `AUGFLOW_PROJECT_PATH`
-if set. See [docs/transports-and-scoping.md](../transports-and-scoping.md).
+`augflow mcp` scopes to the nearest linked or registered project at or above
+the directory it's launched from, or `AUGFLOW_PROJECT_PATH` if set. See [docs/transports-and-scoping.md](../transports-and-scoping.md).
 
 ## Verify
 

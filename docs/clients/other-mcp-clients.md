@@ -46,6 +46,9 @@ augflow mcp --http --host 127.0.0.1 --port 4401
 # http://localhost:4400/api/mcp   (header: X-Project-Path: /path/to/project)
 ```
 
+The `X-Project-Path` header applies to `/api/mcp` only. Standalone `--http`
+ignores it and serves the project it resolved at startup.
+
 Both bind to `127.0.0.1` by default. Standalone `--http` carries no
 authentication at all; `/api/mcp` inherits `serve`'s auth (effectively none
 for an unconfigured loopback `api_token`, enforced if you've set one) but is

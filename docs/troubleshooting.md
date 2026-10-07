@@ -20,11 +20,23 @@ project with data. Check:
 
 1. Is `AUGFLOW_PROJECT_PATH` set, and does it point at a project Augflow
    already knows about?
-2. If not set, is there a `.augflow/project` link file in the directory your
-   client launched `augflow mcp` from? (Not a parent directory — it only
-   checks the exact cwd.)
-3. Run `augflow project link <key>` from that directory if it isn't linked
+2. If not set, is the directory your client launched `augflow mcp` from, or
+   one of its parent directories, linked (`.augflow/project`) or a project
+   registered with Augflow? Parent directories are searched since v0.1.8.
+3. On Linux and macOS, a parent directory's key file is ignored if that
+   directory, its `.augflow/` folder or the file is owned by another user or
+   writable by other users or a shared group. Fix the permissions, or set
+   `AUGFLOW_PROJECT_PATH`.
+4. Run `augflow project link <key>` from the project root if it isn't linked
    yet.
+
+Two things that look like an empty result but aren't scoping problems:
+
+- `task_list` returns at most 100 tasks per call (max 500 with `limit`); page
+  with `offset` for more.
+- Since v0.1.8, a mistyped `status` filter on `card_list` (or Hermes
+  `augflow_cards_list`) returns an error listing the valid values instead of
+  an empty list.
 
 See [docs/transports-and-scoping.md](transports-and-scoping.md#project-scoping)
 for the full resolution order.
@@ -39,7 +51,28 @@ including local stdio. An ID that belongs to a different project than the
 one this call resolved to comes back not-found, not that other project's
 data. Check which project the server actually resolved to (see
 [docs/transports-and-scoping.md](transports-and-scoping.md#project-scoping))
-before assuming the ID itself is wrong.
+before assuming the ID itself is wrong. Since v0.1.8 the not-found message
+names the project the call resolved to, so the mismatch is visible in the
+error itself.
+
+A task that exists but has no card yet returns "has no card yet" from card
+tools that act on an existing card. Use `task_show`, `card_show` (a read-only
+virtual view of the task), or create the card with
+`workspace_start`/`card_schedule`.
+
+## "My MCP client rejects a result: 'expected record, received array'"
+
+Augflow before v0.1.8 sent list results (`card_list`, `task_list`,
+`deps_list`, and others) as a JSON array in `structuredContent`, which strict
+clients such as Claude Code reject. Upgrade to Augflow v0.1.8 or later; list
+results now carry the JSON only as text.
+
+## "A start is rejected: model is not available via the 9router bridge"
+
+With 9router routing on, starts and relaunches through MCP check the chosen
+model against the live 9router catalog. Run `augflow router models` to list
+valid models and combos, then set `agent.model` or pass one of those models
+(or start with `router_enabled: false`).
 
 ## "A card was started via MCP, but the agent never came up / a follow-up `card_show` has empty `agent_provider` fields"
 
@@ -94,19 +127,20 @@ a fresh one (this invalidates the old one).
   A remote, already-paired/approved device must instead use the separate
   `/api/mcp-remote` route — see
   [docs/transports-and-scoping.md](transports-and-scoping.md).
-- Confirm the `X-Project-Path` header is set — without it, project scope
-  can't resolve.
+- Set the `X-Project-Path` header to the project's absolute path — without
+  it, `/api/mcp` uses the project `augflow serve` is running against.
+  Standalone `augflow mcp --http` ignores this header and always serves the
+  project it resolved at startup.
 
 ## `/api/mcp-remote` returns 403 "remote MCP access is disabled"
 
 This exact message fires when `remote_access.mcp.enabled` is `false`, or its
 effective `allowed_tools` is empty (the operator explicitly set
 `allowed_tools: []`). Check `remote_access.mcp` in `~/.augflow/config.yaml`.
-If you just edited `config.yaml` and still don't get a 403, check that the
-file still exists, parses, and — if the server started with any auth
-configured (`api_token`, Google auth, or a session secret) — still has at
-least one of them. In any of those failure cases the server silently keeps
-the setting it started with.
+The same 403 is returned when `config.yaml` exists but can't be read, is
+empty, or fails to parse — the route fails closed and the server log records
+the failure. Fix the file and the next request picks it up. Only a missing
+`config.yaml` falls back to the setting `augflow serve` started with.
 
 ## Still stuck
 

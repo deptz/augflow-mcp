@@ -33,7 +33,8 @@ file shape if `~/.claude.json` doesn't exist yet.
 ## Project scope
 
 `augflow mcp` scopes its tools to whichever project it resolves at startup — by
-default, the directory Claude Code launches the process from. If you're running
+default, the nearest linked or registered project at or above the directory
+Claude Code launches the process from. If you're running
 Claude Code somewhere that isn't a linked project root or an active card
 session, set `AUGFLOW_PROJECT_PATH` explicitly, either in your shell or as an
 `env` block alongside `command`/`args` above:

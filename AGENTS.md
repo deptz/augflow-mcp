@@ -8,17 +8,20 @@ fast path.
 
 - Binary: `augflow`, must be on `PATH`. Check: `augflow --version`.
 - Two independent MCP servers exist. Pick the right one:
-  - `augflow mcp` — general purpose, 94 tools, no auth, stdio or `--http`.
+  - `augflow mcp` — general purpose, 95 tools, no auth, stdio or `--http`.
   - `augflow hermes-direct serve` — Hermes-only, 13 tools, token + allowlist auth, stdio only.
-- Default project scope = launch directory, unless `AUGFLOW_PROJECT_PATH` is set. See "Project scoping" below.
+- Default project scope = nearest linked/registered project at or above the launch directory, unless `AUGFLOW_PROJECT_PATH` (or, for hermes-direct, `--project`/`default_project`) is set. See "Project scoping" below.
 - Card/task ID lookups (`card_show`, `task_show`, `deps_list`/`deps_add`,
   `qa_result`, `qa_list_runs`, `workspace_plan`, `workspace_implement`,
   etc.) are project-scoped: an ID that belongs to a different project than
   the resolved scope returns not-found, not a cross-project result. If a
   specific known ID comes back not-found, check project scope before
-  assuming the ID is wrong.
+  assuming the ID is wrong. The not-found message names the resolved project.
+- `card_list` includes read-only virtual To Do entries (`virtual-<taskID>`) for tasks with no card; `status` filter matches `effective_status` (board column), accepts `todo` as alias for `backlog`, and rejects unknown values with an error.
+- `task_list` is paged: `limit` (default 100, max 500) + `offset`.
+- `structuredContent` is set only for JSON-object results; array results (list tools) are text-only in `Content[0].Text`.
 - No config values in this repo are fabricated. Anything not directly sourced from the `augflow` repo is explicitly marked ASSUMPTION or unverified (see `docs/clients/other-mcp-clients.md`).
-- Reflects Augflow v0.1.6.
+- Reflects Augflow v0.1.8.
 
 ## Minimal stdio connection (most clients)
 
@@ -50,9 +53,11 @@ Variants by client (exact key names differ — see `docs/clients/<name>.md`):
 ```
 augflow mcp --http --host 127.0.0.1 --port 4401
 ```
-or, while `augflow serve` runs: `http://localhost:4400/api/mcp` with header
-`X-Project-Path: <absolute path>`. Standalone `--http` has no auth at all;
-`/api/mcp` inherits `serve`'s auth (effectively none for an unconfigured
+(serves the project resolved at startup for every request; it ignores
+`X-Project-Path`), or, while `augflow serve` runs:
+`http://localhost:4400/api/mcp` with header `X-Project-Path: <absolute path>`
+(falls back to serve's project when absent). Standalone `--http` has no auth at all;
+`/api/mcp` is admin-only and inherits `serve`'s auth (effectively none for an unconfigured
 loopback `api_token`, enforced if you set one) but is always blocked for
 remote/tunneled devices. Localhost binding is the real boundary either way —
 never expose beyond it.
@@ -69,16 +74,19 @@ defaults to a curated, non-destructive set (not strictly read-only; some
 reads do internal bookkeeping) — nothing that commits, pushes, deletes,
 creates/updates a PR, or starts/retries a cloud job (`card_reopen` is not in
 the default) — and an explicit `allowed_tools: []` is a deliberate deny-all.
+The gate is re-read on every request and fails closed (403) if `config.yaml`
+exists but is unreadable, empty or invalid.
 `X-Project-Path` (or `?project=`) is mandatory on this route, with no
 fallback project. See
 [docs/transports-and-scoping.md](docs/transports-and-scoping.md) for the full
 picture.
 
-## Project scoping resolution order (stdio servers)
+## Project scoping resolution order (`augflow mcp` stdio/`--http`, `hermes-direct serve`)
 
-1. `AUGFLOW_PROJECT_PATH` env var
-2. `.augflow/project` link file in cwd (not parent dirs)
-3. literal cwd absolute path as legacy fallback key
+1. explicit value — `augflow mcp`: `AUGFLOW_PROJECT_PATH`; hermes-direct: `--project`, then `AUGFLOW_PROJECT_PATH`, then `hermes_direct.default_project`. Bare key used as is; a path resolves as if started in that directory (steps 2–4).
+2. `.augflow/project` link file in cwd
+3. walk up from cwd to the first dir with a valid `.augflow/project` key or a registered project (also walks the symlink-resolved cwd). Linux/macOS: an ancestor key file is ignored unless its dir, `.augflow/` and the file are owned by you or root and not writable by others/shared group.
+4. absolute cwd path as legacy fallback key
 
 Empty tool results with no error == almost always a scoping miss, not a
 connection failure. Set `AUGFLOW_PROJECT_PATH` explicitly if unsure.

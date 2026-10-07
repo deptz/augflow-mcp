@@ -2,9 +2,9 @@
 
 Two different tool catalogs, depending on which server you connect (see
 [README.md](../README.md) for which one your client should use). Reflects
-Augflow v0.1.6.
+Augflow v0.1.8.
 
-## `augflow mcp` (general-purpose, 94 tools)
+## `augflow mcp` (general-purpose, 95 tools)
 
 Representative categories — this list will drift as Augflow adds tools; treat
 it as a map of what exists, not an exact/exhaustive spec:
@@ -25,6 +25,28 @@ it as a map of what exists, not an exact/exhaustive spec:
   `unreversed_side_effects`. `card_move`/`card move` still cannot move a Done
   card; Reopen is the only route back into In Progress (`card_start_over`
   sends it back to To Do instead).
+
+  `card_list` matches the web board. Each real card carries
+  `effective_status`, its board column. After the real cards come read-only
+  **virtual To Do entries**, one per project task that has no card yet,
+  taken from the project's 100 most recently created tasks
+  (`id: "virtual-<taskID>"`, `status`/`effective_status: "backlog"`,
+  `virtual: true`). Listing them writes nothing. The `status` filter matches
+  `effective_status` and accepts `backlog`, `plan`, `in_progress` and `done`,
+  plus `todo` as an alias for `backlog`. Any other value returns an error
+  listing the valid values instead of an empty list. Virtual entries appear only
+  with no filter or with `backlog`/`todo`, never with `archived=true`, and tasks
+  whose card is archived are not listed.
+
+  `card_show` accepts a card ID, a task ID or a `virtual-<taskID>` ID, and
+  returns the card's tasks in board order. Like opening the card in the web UI,
+  it moves a To Do card that already has a live agent session to In Progress.
+  For a task with no card it returns the read-only virtual view without creating
+  a card. `card_schedule` and `card_queue_add` accept a virtual ID and create
+  the card on first use (`card_schedule_preview` accepts one without creating
+  a card), and `workspace_start` creates a card from a task ID. Other card
+  tools that act on an existing card return a "has no card yet" error for a
+  task without a card.
 - **Knowledge** — `knowledge_tree`, `card_knowledge_get`, `card_knowledge_add`,
   `card_knowledge_remove`, `card_knowledge_sync`
 - **Workspace** — `agent_options`, `workspace_start`, `workspace_plan`,
@@ -41,17 +63,54 @@ it as a map of what exists, not an exact/exhaustive spec:
   asynchronously. Its response is only `{ok, card_id, branch, status}`; a
   follow-up `card_show`/`card_list` can show the card's session with empty
   `agent_provider*` fields until the launch finishes and fills them in.
+
+  When 9router routing is on for the agent's provider, starts and relaunches
+  through MCP (`workspace_start`, `card_move` into In Progress, `card_reopen`,
+  `card_switch_provider`, `workspace_plan`, `workspace_implement`, and QA
+  workflow compilation) check the chosen model against the live 9router
+  catalog. An empty or unknown model is rejected with a message pointing to
+  `augflow router models`. With routing off, nothing changes. A `qa_run` that
+  uses LLM assertions skips them instead of failing when the model is unknown,
+  and a `workspace_start` with `plan_prep` is checked only when the card moves
+  to In Progress.
+
+  `agent.auto_enter` defaults to true, so a started card's prompt is sent
+  without a review step unless your config sets `auto_enter: false`.
 - **Plans** — `plan_list`, `plan_save`, `plan_decide`, `plan_append_to_task`
 - **Runs** — `run_list`, `run_show`, `run_log`, `run_cancel`
+
+  `plan_list` and `run_list` accept a task ID as well as a card ID.
 - **Review threads** — `card_review_list`, `card_review_create`,
   `card_review_patch`, `card_review_delete`, `card_review_send`
+
+  `card_review_list`'s `kind` filter must be `plan`, `diff` or `html` (or
+  omitted); any other value is an error.
 - **Cloud agent** — `card_start_cloud`, `card_cloud_status`,
   `card_cloud_cancel`, `card_cloud_retry`, `card_cloud_request_changes`
+
+  `card_start_cloud`'s `provider` names a configured `cloud_agent` provider:
+  `edison`, `modal` or `digitalocean`.
 - **Peer handoff** — `peer_list`, `peer_self`, `peer_pair`, `peer_unpair`,
   `card_send_to_peer`, `card_handoff_accept`, `card_handoff_reject`,
   `card_handoff_list_incoming`
-- **Tasks / deps / QA** — `task_*`, `deps_*`, `qa_*` (notably `task_sync` and
-  `jira_import_task`)
+- **Tasks / deps / QA** — `task_*`, `deps_*`, `qa_*` (notably `task_sync`,
+  `jira_import_task` and `task_convert_to_jira`)
+
+  `task_list` is paged: optional `limit` (default 100, max 500) and `offset`,
+  newest first. When a page comes back full, call again with
+  `offset += limit`. Before v0.1.8 the tool silently returned at most the
+  newest 100 tasks and had no `limit`/`offset` parameters.
+
+  `task_convert_to_jira` turns a manual task into a Jira-backed one, keeping
+  its card and attachments. `mode: link` attaches an
+  existing issue (`issue_key`; optional `content_mode`: `jira` (default),
+  `keep_local` or `push_local`). `mode: create` creates a new issue (optional
+  `project_key`, `epic_key`, and `story_key`, which requires `epic_key`).
+  Optional `rename_branch` renames the card's branch to match. Requires Jira
+  to be configured in Augflow.
+
+  `deps_add` rejects self-dependencies and circular dependencies, like the web
+  UI.
 - **Bitbucket PR review** — `bb_pr_review_list_prs`, `bb_pr_review_list_drafts`,
   `bb_pr_review_get_draft`, `bb_pr_review_get_batch`,
   `bb_pr_review_update_draft_body` (requires `pr_provider: bitbucket` +
@@ -63,11 +122,14 @@ it as a map of what exists, not an exact/exhaustive spec:
 For the current, authoritative list, ask your MCP client to list tools from
 the `augflow` server (its `tools/list` call).
 
-Every successful tool result (both `augflow mcp` and `augflow hermes-direct
-serve`) now carries the real JSON payload in `structuredContent`, not an
-empty object — `Content[0].Text` still carries the same JSON alongside it, so
-existing clients that only read the text are unaffected. An error result
-carries no `structuredContent`.
+Both servers return the JSON payload as text in `Content[0].Text`. Since
+v0.1.8 they also set `structuredContent`, **but only when the result is a JSON
+object**. Array results (`card_list`, `task_list`, `deps_list`,
+`deps_link_types`, `card_schedule_list`, `card_queue_list`, and others) carry
+no `structuredContent`, because strict clients such as Claude Code reject a
+non-object there ("expected record, received array"). Empty lists come back as
+`[]`, not `null`. An error result carries no `structuredContent`. Clients that
+only read the text are unaffected.
 
 ## Remote-device subset (`/api/mcp-remote`)
 
@@ -84,7 +146,7 @@ for the transport and auth details. Unless narrowed by
 `qa_list_runs`, `qa_result`, `agent_options` — a curated, non-destructive set
 (not strictly read-only; some reads do internal bookkeeping): nothing that
 commits, pushes, deletes, creates/updates a PR, or starts/retries a cloud
-job, and `card_reopen` is not included. A disallowed tool simply doesn't
+job, and `card_reopen` and `task_convert_to_jira` are not included. A disallowed tool simply doesn't
 appear in that caller's `tools/list`.
 
 ## Not covered by MCP: repository set management
@@ -92,7 +154,7 @@ appear in that caller's `tools/list`.
 Registering a local git checkout into a **repository set** (the device-level
 slug→path mappings in `~/.augflow/config.yaml`'s `repos_profiles`, surfaced in
 the web UI as Settings → Repos) is **not exposed via either MCP server** — it
-was checked against the full list of all 94 `augflow mcp` tools at v0.1.6, and
+was checked against the full list of all 95 `augflow mcp` tools at v0.1.8, and
 none of them touch `repos_profiles`. You have to do this once, outside MCP,
 via:
 
@@ -119,6 +181,26 @@ that first step always requires the CLI or web UI.
 - **Routing** — `augflow_bind_channel`, `augflow_active_card_set`
 - **Mutating** — `augflow_prompt_queue`, `augflow_summary_generate`,
   `augflow_stop_agent`
+
+Since v0.1.8:
+
+- `augflow_cards_list` with no `status` returns the "relevant" view (cards in
+  progress, with a live session, or with an agent status). Pass `status`
+  (`backlog`/`todo`, `plan`, `in_progress`, `done`) to list one board column;
+  any other value is an `invalid_args` error. Entries carry `effective_status`,
+  and the response echoes the `filter` used.
+- With `status: backlog`, the list also includes tasks that have no card yet,
+  as read-only `virtual: true` entries (`card_id: virtual-<taskID>`). They can
+  be read with `augflow_card_show`, but not bound, prompted, summarized or
+  stopped.
+- `card_key` falls back to the task ID when a card has no external key.
+- `augflow_card_show` accepts a card ID, task ID, `card_key` or virtual ID. A
+  key that matches more than one card or task returns `ambiguous_key`; use the
+  `card_id` instead.
+- `augflow_events_poll`/`augflow_events_wait` return only this project's events
+  and include `has_more`.
+- `augflow_status` and `augflow_groups_list` include a `warnings` entry when
+  channel bindings can't be read, instead of reporting the channel as unbound.
 
 Full detail, including what each tool requires and how permissions gate them,
 is in [docs/clients/hermes.md](clients/hermes.md).
